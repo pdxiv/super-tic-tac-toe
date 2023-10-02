@@ -56,21 +56,6 @@ type Game struct {
 	Players []*audio.Player
 }
 
-func loadAudio(filename string, audioContext *audio.Context) (*audio.Player, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	byteReader := bytes.NewReader(data)
-	decoded, err := wav.DecodeWithSampleRate(44100, byteReader)
-	if err != nil {
-		return nil, err
-	}
-
-	return audioContext.NewPlayer(decoded)
-}
-
 func (g *Game) Update() error {
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -132,26 +117,43 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return ScreenWidth, ScreenHeight
 }
 
+func loadAudioFiles(filenames []string) ([]*audio.Player, error) {
+	audioContext := audio.NewContext(44100)
+	var players []*audio.Player
+	for _, filename := range filenames {
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		byteReader := bytes.NewReader(data)
+		decoded, err := wav.DecodeWithSampleRate(44100, byteReader)
+		if err != nil {
+			return nil, err
+		}
+
+		player, err := audioContext.NewPlayer(decoded)
+		if err != nil {
+			return nil, err
+		}
+		players = append(players, player)
+	}
+	return players, nil
+}
+
 func main() {
 
-	audioContext := audio.NewContext(44100)
+	audioFiles := []string{"resources/wet.wav", "resources/stomp.wav"}
+	players, err := loadAudioFiles(audioFiles)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	game := &Game{
-		Players: []*audio.Player{}, // Initialize as empty slice
+		Players: []*audio.Player{},
 	}
 
-	// Load multiple audio files
-	player1, err := loadAudio("resources/wet.wav", audioContext)
-	if err != nil {
-		log.Fatal(err)
-	}
-	game.Players = append(game.Players, player1)
-
-	player2, err := loadAudio("resources/stomp.wav", audioContext)
-	if err != nil {
-		log.Fatal(err)
-	}
-	game.Players = append(game.Players, player2)
+	game.Players = players
 
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
 	ebiten.SetWindowTitle("Super Tic-Tac-Toe")
