@@ -24,6 +24,7 @@ const (
 )
 
 var playArea [9][9]int
+var blockedGrids [3][3]int
 
 type Mouse struct {
 	X         int
@@ -39,10 +40,11 @@ const (
 	Circle
 	Cross
 	Grid
+	Blocked
 )
 
 func init() {
-	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png"}
+	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png"}
 	for _, filename := range image_filename {
 		loadedImage, _, err := ebitenutil.NewImageFromFile(filename)
 		if err != nil {
@@ -67,13 +69,28 @@ func (g *Game) Update() error {
 		}
 	} else {
 		if mouse.Depressed {
-			if playArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
-				playArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] = playerTurn + 1
+			areaLocationX := mouse.X / SymbolSize
+			areaLocationY := mouse.Y / SymbolSize
+			bigLocationX := areaLocationX / 3
+			bigLocationY := areaLocationY / 3
+			inGridX := areaLocationX % 3
+			inGridY := areaLocationY % 3
+
+			if blockedGrids[bigLocationX][bigLocationY] == 0 && playArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+				playArea[areaLocationX][areaLocationY] = playerTurn + 1
 				playerTurn = (playerTurn + 1) % 2
 				if len(g.Players) > 0 && !g.Players[1].IsPlaying() {
 					g.Players[1].Rewind()
 					g.Players[1].Play()
 				}
+
+				for y := 0; y < 3; y++ {
+					for x := 0; x < 3; x++ {
+						blockedGrids[x][y] = 1
+					}
+				}
+				blockedGrids[inGridX][inGridY] = 0
+
 			} else {
 				if len(g.Players) > 0 && !g.Players[0].IsPlaying() {
 					g.Players[0].Rewind()
@@ -98,17 +115,20 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	op := createOptions(0, 0, 3)
 	screen.DrawImage(img[Grid], op)
 
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
-			op := createOptions(x*3, y*3, 1)
-			screen.DrawImage(img[Grid], op)
-		}
-	}
-
 	for y := 0; y < 9; y++ {
 		for x := 0; x < 9; x++ {
 			op := createOptions(x, y, 1)
 			screen.DrawImage(img[playArea[x][y]], op)
+		}
+	}
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 3; x++ {
+			op := createOptions(x*3, y*3, 1)
+			screen.DrawImage(img[Grid], op)
+
+			if blockedGrids[x][y] > 0 {
+				screen.DrawImage(img[Blocked], op)
+			}
 		}
 	}
 }
