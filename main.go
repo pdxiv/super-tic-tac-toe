@@ -77,6 +77,8 @@ func (g *Game) Update() error {
 			inGridY := areaLocationY % 3
 
 			if blockedGrids[bigLocationX][bigLocationY] == 0 && playArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+
+				// Put a mark in an area and play a sound
 				playArea[areaLocationX][areaLocationY] = playerTurn + 1
 				playerTurn = (playerTurn + 1) % 2
 				if len(g.Players) > 0 && !g.Players[1].IsPlaying() {
@@ -84,12 +86,30 @@ func (g *Game) Update() error {
 					g.Players[1].Play()
 				}
 
+				// Block off grids
 				for y := 0; y < 3; y++ {
 					for x := 0; x < 3; x++ {
 						blockedGrids[x][y] = 1
 					}
 				}
 				blockedGrids[inGridX][inGridY] = 0
+
+				// Check if available slot is full - if so, unlock all slots
+				emptySlots := 0
+				for y := 0; y < 3; y++ {
+					for x := 0; x < 3; x++ {
+						if playArea[x+inGridX*3][y+inGridY*3] == 0 {
+							emptySlots++
+						}
+					}
+				}
+				if emptySlots == 0 {
+					for y := 0; y < 3; y++ {
+						for x := 0; x < 3; x++ {
+							blockedGrids[x][y] = 0
+						}
+					}
+				}
 
 			} else {
 				if len(g.Players) > 0 && !g.Players[0].IsPlaying() {
