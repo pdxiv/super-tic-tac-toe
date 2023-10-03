@@ -99,6 +99,19 @@ func (g *Game) Update() error {
 				}
 				gameData.BlockedGrids[inGridX][inGridY] = 0
 
+				for y := 0; y < 3; y++ {
+					for x := 0; x < 3; x++ {
+						status := checkWinner(extract3x3(gameData.PlayArea, x, y))
+						if status != gameData.ClaimedGrids[x][y] {
+							if len(g.Players) > 0 && !g.Players[2].IsPlaying() {
+								g.Players[2].Rewind()
+								g.Players[2].Play()
+							}
+						}
+						gameData.ClaimedGrids[x][y] = status
+					}
+				}
+
 				// Check if available slot is full - if so, unlock all slots
 				emptySlots := 0
 				for y := 0; y < 3; y++ {
@@ -137,20 +150,27 @@ func createOptions(x int, y int, scale int) *ebiten.DrawImageOptions {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+
+	// Draw big grid
 	op := createOptions(0, 0, 3)
 	screen.DrawImage(img[Grid], op)
 
+	// Draw all circles and crosses
 	for y := 0; y < 9; y++ {
 		for x := 0; x < 9; x++ {
 			op := createOptions(x, y, 1)
 			screen.DrawImage(img[gameData.PlayArea[x][y]], op)
 		}
 	}
+
 	for y := 0; y < 3; y++ {
 		for x := 0; x < 3; x++ {
 			op := createOptions(x*3, y*3, 1)
+
+			// Draw small grid
 			screen.DrawImage(img[Grid], op)
 
+			// Draw greyed out block
 			if gameData.BlockedGrids[x][y] > 0 {
 				screen.DrawImage(img[Blocked], op)
 			}
@@ -194,6 +214,44 @@ func loadAudioFiles(filenames []string) ([]*audio.Player, error) {
 	return players, nil
 }
 
+func checkWinner(T [][]int) int {
+	// Check rows
+	for i := 0; i < 3; i++ {
+		if T[i][0] == T[i][1] && T[i][1] == T[i][2] && T[i][0] != 0 {
+			return T[i][0]
+		}
+	}
+
+	// Check columns
+	for i := 0; i < 3; i++ {
+		if T[0][i] == T[1][i] && T[1][i] == T[2][i] && T[0][i] != 0 {
+			return T[0][i]
+		}
+	}
+
+	// Check diagonals
+	if T[0][0] == T[1][1] && T[1][1] == T[2][2] && T[0][0] != 0 {
+		return T[0][0]
+	}
+	if T[0][2] == T[1][1] && T[1][1] == T[2][0] && T[0][2] != 0 {
+		return T[0][2]
+	}
+
+	return 0 // No winner
+}
+
+// Function to extract a 3x3 slice from a 9x9 2D slice
+func extract3x3(slice [][]int, xGridOffset int, yGridOffset int) [][]int {
+	xOffset := xGridOffset * 3
+	yOffset := yGridOffset * 3
+	var newSlice [][]int
+	for i := 0; i < 3; i++ {
+		row := slice[i+xOffset][yOffset : 3+yOffset]
+		newSlice = append(newSlice, row)
+	}
+	return newSlice
+}
+
 func initGameData() {
 	gameData.PlayArea = [][]int{
 		{0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -212,8 +270,7 @@ func initGameData() {
 
 func main() {
 	initGameData()
-	gameData.ClaimedGrids[0][0] = 1
-	audioFiles := []string{"resources/wet.wav", "resources/stomp.wav"}
+	audioFiles := []string{"resources/wet.wav", "resources/c.wav", "resources/c-major.wav"}
 	players, err := loadAudioFiles(audioFiles)
 	if err != nil {
 		log.Fatal(err)
