@@ -23,8 +23,14 @@ const (
 	SymbolsInGrid = 3
 )
 
-var playArea [9][9]int
-var blockedGrids [3][3]int
+type GameData struct {
+	PlayerTurn   int
+	PlayArea     [][]int // 9x9 entries
+	BlockedGrids [][]int // 3x3 entries
+	ClaimedGrids [][]int // 3x3 entries
+}
+
+var gameData GameData
 
 type Mouse struct {
 	X         int
@@ -33,7 +39,6 @@ type Mouse struct {
 }
 
 var mouse = Mouse{0, 0, false}
-var playerTurn int = 0
 
 const (
 	Empty int = iota
@@ -76,11 +81,11 @@ func (g *Game) Update() error {
 			inGridX := areaLocationX % 3
 			inGridY := areaLocationY % 3
 
-			if blockedGrids[bigLocationX][bigLocationY] == 0 && playArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+			if gameData.BlockedGrids[bigLocationX][bigLocationY] == 0 && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
 
 				// Put a mark in an area and play a sound
-				playArea[areaLocationX][areaLocationY] = playerTurn + 1
-				playerTurn = (playerTurn + 1) % 2
+				gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
+				gameData.PlayerTurn = (gameData.PlayerTurn + 1) % 2
 				if len(g.Players) > 0 && !g.Players[1].IsPlaying() {
 					g.Players[1].Rewind()
 					g.Players[1].Play()
@@ -89,16 +94,16 @@ func (g *Game) Update() error {
 				// Block off grids
 				for y := 0; y < 3; y++ {
 					for x := 0; x < 3; x++ {
-						blockedGrids[x][y] = 1
+						gameData.BlockedGrids[x][y] = 1
 					}
 				}
-				blockedGrids[inGridX][inGridY] = 0
+				gameData.BlockedGrids[inGridX][inGridY] = 0
 
 				// Check if available slot is full - if so, unlock all slots
 				emptySlots := 0
 				for y := 0; y < 3; y++ {
 					for x := 0; x < 3; x++ {
-						if playArea[x+inGridX*3][y+inGridY*3] == 0 {
+						if gameData.PlayArea[x+inGridX*3][y+inGridY*3] == 0 {
 							emptySlots++
 						}
 					}
@@ -106,7 +111,7 @@ func (g *Game) Update() error {
 				if emptySlots == 0 {
 					for y := 0; y < 3; y++ {
 						for x := 0; x < 3; x++ {
-							blockedGrids[x][y] = 0
+							gameData.BlockedGrids[x][y] = 0
 						}
 					}
 				}
@@ -138,7 +143,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for y := 0; y < 9; y++ {
 		for x := 0; x < 9; x++ {
 			op := createOptions(x, y, 1)
-			screen.DrawImage(img[playArea[x][y]], op)
+			screen.DrawImage(img[gameData.PlayArea[x][y]], op)
 		}
 	}
 	for y := 0; y < 3; y++ {
@@ -146,9 +151,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			op := createOptions(x*3, y*3, 1)
 			screen.DrawImage(img[Grid], op)
 
-			if blockedGrids[x][y] > 0 {
+			if gameData.BlockedGrids[x][y] > 0 {
 				screen.DrawImage(img[Blocked], op)
 			}
+		}
+	}
+
+	// Draw claimed areas
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 3; x++ {
+			op = createOptions(x, y, 3)
+			screen.DrawImage(img[gameData.ClaimedGrids[x][y]], op)
 		}
 	}
 }
@@ -181,8 +194,25 @@ func loadAudioFiles(filenames []string) ([]*audio.Player, error) {
 	return players, nil
 }
 
-func main() {
+func initGameData() {
+	gameData.PlayArea = [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	gameData.BlockedGrids = [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
+	gameData.ClaimedGrids = [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
+}
 
+func main() {
+	initGameData()
+	gameData.ClaimedGrids[0][0] = 1
 	audioFiles := []string{"resources/wet.wav", "resources/stomp.wav"}
 	players, err := loadAudioFiles(audioFiles)
 	if err != nil {
