@@ -15,8 +15,9 @@ import (
 var img []*ebiten.Image
 
 const (
-	ScreenWidth   = 576
-	ScreenHeight  = 576
+	FieldSize     = 576
+	ScreenWidth   = FieldSize
+	ScreenHeight  = FieldSize + 64
 	SampleRate    = 48000
 	SymbolSize    = 64
 	GridSize      = 192
@@ -46,10 +47,12 @@ const (
 	Cross
 	Grid
 	Blocked
+	Player
+	Winner
 )
 
 func init() {
-	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png"}
+	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png", "resources/player.png", "resources/winner.png"}
 	for _, filename := range image_filename {
 		loadedImage, _, err := ebitenutil.NewImageFromFile(filename)
 		if err != nil {
@@ -91,7 +94,7 @@ func (g *Game) Update() error {
 					g.Players[1].Play()
 				}
 
-				// Check for winner
+				// Check for "small" winner
 				for y := 0; y < 3; y++ {
 					for x := 0; x < 3; x++ {
 						status := checkWinner(extract3x3(gameData.PlayArea, x, y))
@@ -106,7 +109,13 @@ func (g *Game) Update() error {
 				}
 
 				// Block off grids
-				if gameData.ClaimedGrids[inGridX][inGridY] == 0 {
+				if checkWinner(gameData.ClaimedGrids) > 0 {
+					for y := 0; y < 3; y++ {
+						for x := 0; x < 3; x++ {
+							gameData.BlockedGrids[x][y] = true
+						}
+					}
+				} else if gameData.ClaimedGrids[inGridX][inGridY] == 0 {
 					for y := 0; y < 3; y++ {
 						for x := 0; x < 3; x++ {
 							gameData.BlockedGrids[x][y] = true
@@ -150,9 +159,17 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func createOptions(x int, y int, scale int) *ebiten.DrawImageOptions {
+func createOptionsSymbol(x int, y int, scale int) *ebiten.DrawImageOptions {
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(float64(x*SymbolSize), float64(y*SymbolSize))
+	op.GeoM.Scale(float64(scale), float64(scale))
+	op.ColorScale.ScaleAlpha(1)
+	return op
+}
+
+func createOptionsAbsolute(x int, y int, scale int) *ebiten.DrawImageOptions {
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
 	op.GeoM.Scale(float64(scale), float64(scale))
 	op.ColorScale.ScaleAlpha(1)
 	return op
@@ -161,20 +178,20 @@ func createOptions(x int, y int, scale int) *ebiten.DrawImageOptions {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw big grid
-	op := createOptions(0, 0, 3)
+	op := createOptionsSymbol(0, 0, 3)
 	screen.DrawImage(img[Grid], op)
 
 	// Draw all circles and crosses
 	for y := 0; y < 9; y++ {
 		for x := 0; x < 9; x++ {
-			op := createOptions(x, y, 1)
+			op := createOptionsSymbol(x, y, 1)
 			screen.DrawImage(img[gameData.PlayArea[x][y]], op)
 		}
 	}
 
 	for y := 0; y < 3; y++ {
 		for x := 0; x < 3; x++ {
-			op := createOptions(x*3, y*3, 1)
+			op := createOptionsSymbol(x*3, y*3, 1)
 
 			// Draw small grid
 			screen.DrawImage(img[Grid], op)
@@ -189,10 +206,30 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw claimed areas
 	for y := 0; y < 3; y++ {
 		for x := 0; x < 3; x++ {
-			op = createOptions(x, y, 3)
+			op = createOptionsSymbol(x, y, 3)
 			screen.DrawImage(img[gameData.ClaimedGrids[x][y]], op)
 		}
 	}
+
+	if checkWinner(gameData.ClaimedGrids) > 0 {
+		// Draw "winner:" text
+		op = createOptionsAbsolute(0, 72, 8)
+		screen.DrawImage(img[Winner], op)
+
+		// Draw winning player icon
+		op = createOptionsSymbol(7, 9, 1)
+		screen.DrawImage(img[checkWinner(gameData.ClaimedGrids)], op)
+
+	} else {
+		// Draw "player:" text
+		op = createOptionsAbsolute(0, 72, 8)
+		screen.DrawImage(img[Player], op)
+
+		// Draw current player icon
+		op = createOptionsSymbol(7, 9, 1)
+		screen.DrawImage(img[gameData.PlayerTurn+1], op)
+	}
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
