@@ -25,9 +25,9 @@ const (
 
 type GameData struct {
 	PlayerTurn   int
-	PlayArea     [][]int // 9x9 entries
-	BlockedGrids [][]int // 3x3 entries
-	ClaimedGrids [][]int // 3x3 entries
+	PlayArea     [][]int  // 9x9 entries
+	BlockedGrids [][]bool // 3x3 entries
+	ClaimedGrids [][]int  // 3x3 entries
 }
 
 var gameData GameData
@@ -81,7 +81,7 @@ func (g *Game) Update() error {
 			inGridX := areaLocationX % 3
 			inGridY := areaLocationY % 3
 
-			if gameData.BlockedGrids[bigLocationX][bigLocationY] == 0 && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+			if !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
 
 				// Put a mark in an area and play a sound
 				gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
@@ -91,14 +91,7 @@ func (g *Game) Update() error {
 					g.Players[1].Play()
 				}
 
-				// Block off grids
-				for y := 0; y < 3; y++ {
-					for x := 0; x < 3; x++ {
-						gameData.BlockedGrids[x][y] = 1
-					}
-				}
-				gameData.BlockedGrids[inGridX][inGridY] = 0
-
+				// Check for winner
 				for y := 0; y < 3; y++ {
 					for x := 0; x < 3; x++ {
 						status := checkWinner(extract3x3(gameData.PlayArea, x, y))
@@ -109,6 +102,22 @@ func (g *Game) Update() error {
 							}
 						}
 						gameData.ClaimedGrids[x][y] = status
+					}
+				}
+
+				// Block off grids
+				if gameData.ClaimedGrids[inGridX][inGridY] == 0 {
+					for y := 0; y < 3; y++ {
+						for x := 0; x < 3; x++ {
+							gameData.BlockedGrids[x][y] = true
+						}
+					}
+					gameData.BlockedGrids[inGridX][inGridY] = false
+				} else {
+					for y := 0; y < 3; y++ {
+						for x := 0; x < 3; x++ {
+							gameData.BlockedGrids[x][y] = gameData.ClaimedGrids[x][y] > 0
+						}
 					}
 				}
 
@@ -124,7 +133,7 @@ func (g *Game) Update() error {
 				if emptySlots == 0 {
 					for y := 0; y < 3; y++ {
 						for x := 0; x < 3; x++ {
-							gameData.BlockedGrids[x][y] = 0
+							gameData.BlockedGrids[x][y] = false
 						}
 					}
 				}
@@ -171,7 +180,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			screen.DrawImage(img[Grid], op)
 
 			// Draw greyed out block
-			if gameData.BlockedGrids[x][y] > 0 {
+			if gameData.BlockedGrids[x][y] {
 				screen.DrawImage(img[Blocked], op)
 			}
 		}
@@ -264,7 +273,7 @@ func initGameData() {
 		{0, 0, 0, 0, 0, 0, 0, 0, 0},
 		{0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}
-	gameData.BlockedGrids = [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
+	gameData.BlockedGrids = [][]bool{{false, false, false}, {false, false, false}, {false, false, false}}
 	gameData.ClaimedGrids = [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
 }
 
