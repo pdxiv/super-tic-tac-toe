@@ -35,6 +35,8 @@ type GameData struct {
 	ClaimedGrids [][]int  // 3x3 entries
 }
 
+var touchCooldown = 0
+
 var gameData GameData
 
 type Mouse struct {
@@ -54,6 +56,11 @@ const (
 	Player
 	Winner
 	Recycle
+)
+
+const (
+	C int = iota
+	CMajor
 )
 
 func init() {
@@ -80,6 +87,88 @@ type Game struct {
 	Players []*audio.Player
 }
 
+func handleMousePressed(g *Game) {
+	areaLocationX := mouse.X / SymbolSize
+	areaLocationY := mouse.Y / SymbolSize
+	bigLocationX := areaLocationX / 3
+	bigLocationY := areaLocationY / 3
+	inGridX := areaLocationX % 3
+	inGridY := areaLocationY % 3
+
+	// Was mouse clicked inside the recycle button?
+	if mouse.Y >= FieldSize && mouse.X >= 512 {
+		initGameData()
+	}
+
+	// Was mouse clicked inside the play grid?
+	if mouse.X >= 0 && mouse.X < FieldSize && mouse.Y >= 0 && mouse.Y < FieldSize && !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+
+		// Put a mark in an area and play a sound
+		gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
+		gameData.PlayerTurn = (gameData.PlayerTurn + 1) % 2
+		if len(g.Players) > 0 && !g.Players[C].IsPlaying() {
+			g.Players[C].Rewind()
+			g.Players[C].Play()
+		}
+
+		// Check for "small" winner
+		for y := 0; y < 3; y++ {
+			for x := 0; x < 3; x++ {
+				status := checkWinner(extract3x3(gameData.PlayArea, x, y))
+				if status != gameData.ClaimedGrids[x][y] {
+					if len(g.Players) > 0 && !g.Players[CMajor].IsPlaying() {
+						g.Players[CMajor].Rewind()
+						g.Players[CMajor].Play()
+					}
+				}
+				gameData.ClaimedGrids[x][y] = status
+			}
+		}
+
+		// Block off grids
+		if checkWinner(gameData.ClaimedGrids) > 0 {
+			for y := 0; y < 3; y++ {
+				for x := 0; x < 3; x++ {
+					gameData.BlockedGrids[x][y] = true
+				}
+			}
+		} else if gameData.ClaimedGrids[inGridX][inGridY] == 0 {
+			for y := 0; y < 3; y++ {
+				for x := 0; x < 3; x++ {
+					gameData.BlockedGrids[x][y] = true
+				}
+			}
+			gameData.BlockedGrids[inGridX][inGridY] = false
+		} else {
+			for y := 0; y < 3; y++ {
+				for x := 0; x < 3; x++ {
+					gameData.BlockedGrids[x][y] = gameData.ClaimedGrids[x][y] > 0
+				}
+			}
+		}
+
+		// Check if available slot is full - if so, unlock all slots
+		emptySlots := 0
+		for y := 0; y < 3; y++ {
+			for x := 0; x < 3; x++ {
+				if gameData.PlayArea[x+inGridX*3][y+inGridY*3] == 0 {
+					emptySlots++
+				}
+			}
+		}
+		if emptySlots == 0 {
+			for y := 0; y < 3; y++ {
+				for x := 0; x < 3; x++ {
+					gameData.BlockedGrids[x][y] = false
+				}
+			}
+		}
+
+	} else {
+		// If the player clicks somewhere "wrong"
+	}
+}
+
 func (g *Game) Update() error {
 
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -91,91 +180,30 @@ func (g *Game) Update() error {
 		}
 	} else {
 		if mouse.Depressed {
-			areaLocationX := mouse.X / SymbolSize
-			areaLocationY := mouse.Y / SymbolSize
-			bigLocationX := areaLocationX / 3
-			bigLocationY := areaLocationY / 3
-			inGridX := areaLocationX % 3
-			inGridY := areaLocationY % 3
-
-			// Was mouse clicked inside the recycle button?
-			if mouse.Y >= FieldSize && mouse.X >= 512 {
-				initGameData()
-			}
-
-			// Was mouse clicked inside the play grid?
-			if mouse.X >= 0 && mouse.X < FieldSize && mouse.Y >= 0 && mouse.Y < FieldSize && !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
-
-				// Put a mark in an area and play a sound
-				gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
-				gameData.PlayerTurn = (gameData.PlayerTurn + 1) % 2
-				if len(g.Players) > 0 && !g.Players[1].IsPlaying() {
-					g.Players[1].Rewind()
-					g.Players[1].Play()
-				}
-
-				// Check for "small" winner
-				for y := 0; y < 3; y++ {
-					for x := 0; x < 3; x++ {
-						status := checkWinner(extract3x3(gameData.PlayArea, x, y))
-						if status != gameData.ClaimedGrids[x][y] {
-							if len(g.Players) > 0 && !g.Players[2].IsPlaying() {
-								g.Players[2].Rewind()
-								g.Players[2].Play()
-							}
-						}
-						gameData.ClaimedGrids[x][y] = status
-					}
-				}
-
-				// Block off grids
-				if checkWinner(gameData.ClaimedGrids) > 0 {
-					for y := 0; y < 3; y++ {
-						for x := 0; x < 3; x++ {
-							gameData.BlockedGrids[x][y] = true
-						}
-					}
-				} else if gameData.ClaimedGrids[inGridX][inGridY] == 0 {
-					for y := 0; y < 3; y++ {
-						for x := 0; x < 3; x++ {
-							gameData.BlockedGrids[x][y] = true
-						}
-					}
-					gameData.BlockedGrids[inGridX][inGridY] = false
-				} else {
-					for y := 0; y < 3; y++ {
-						for x := 0; x < 3; x++ {
-							gameData.BlockedGrids[x][y] = gameData.ClaimedGrids[x][y] > 0
-						}
-					}
-				}
-
-				// Check if available slot is full - if so, unlock all slots
-				emptySlots := 0
-				for y := 0; y < 3; y++ {
-					for x := 0; x < 3; x++ {
-						if gameData.PlayArea[x+inGridX*3][y+inGridY*3] == 0 {
-							emptySlots++
-						}
-					}
-				}
-				if emptySlots == 0 {
-					for y := 0; y < 3; y++ {
-						for x := 0; x < 3; x++ {
-							gameData.BlockedGrids[x][y] = false
-						}
-					}
-				}
-
-			} else {
-				if len(g.Players) > 0 && !g.Players[0].IsPlaying() {
-					g.Players[0].Rewind()
-					g.Players[0].Play()
-				}
-			}
+			handleMousePressed(g)
 			mouse.Depressed = false
 		}
 	}
+
+	// Initialize an empty slice to store touch IDs
+	var touchIDs []ebiten.TouchID
+
+	// Append active touch IDs to the slice
+	touchIDs = ebiten.AppendTouchIDs(touchIDs[:0])
+
+	// Iterate through each active touch ID
+	foundTouch := 0
+	for _, id := range touchIDs {
+		foundTouch++
+		// Get the X and Y coordinates of the touch event
+		mouse.X, mouse.Y = ebiten.TouchPosition(id)
+
+	}
+	if foundTouch > 0 && touchCooldown > 30 {
+		handleMousePressed(g)
+		touchCooldown = 0
+	}
+	touchCooldown++
 	return nil
 }
 
@@ -339,7 +367,7 @@ func initGameData() {
 
 func main() {
 	initGameData()
-	audioFiles := []string{"assets/wet.wav", "assets/c.wav", "assets/c-major.wav"}
+	audioFiles := []string{"assets/c.wav", "assets/c-major.wav"}
 	players, err := loadAudioFiles(audioFiles)
 	if err != nil {
 		log.Fatal(err)
