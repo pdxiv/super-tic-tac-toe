@@ -49,10 +49,11 @@ const (
 	Blocked
 	Player
 	Winner
+	Recycle
 )
 
 func init() {
-	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png", "resources/player.png", "resources/winner.png"}
+	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png", "resources/player.png", "resources/winner.png", "resources/recycle.png"}
 	for _, filename := range image_filename {
 		loadedImage, _, err := ebitenutil.NewImageFromFile(filename)
 		if err != nil {
@@ -84,7 +85,13 @@ func (g *Game) Update() error {
 			inGridX := areaLocationX % 3
 			inGridY := areaLocationY % 3
 
-			if !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+			// Was mouse clicked inside the recycle button?
+			if mouse.Y >= FieldSize && mouse.X >= 512 {
+				initGameData()
+			}
+
+			// Was mouse clicked inside the play grid?
+			if mouse.Y < FieldSize && !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
 
 				// Put a mark in an area and play a sound
 				gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
@@ -213,23 +220,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	if checkWinner(gameData.ClaimedGrids) > 0 {
 		// Draw "winner:" text
-		op = createOptionsAbsolute(0, 72, 8)
+		op = createOptionsAbsolute(8, 148, 4)
 		screen.DrawImage(img[Winner], op)
 
 		// Draw winning player icon
-		op = createOptionsSymbol(7, 9, 1)
+		op = createOptionsSymbol(4, 9, 1)
 		screen.DrawImage(img[checkWinner(gameData.ClaimedGrids)], op)
 
 	} else {
 		// Draw "player:" text
-		op = createOptionsAbsolute(0, 72, 8)
+		op = createOptionsAbsolute(8, 148, 4)
 		screen.DrawImage(img[Player], op)
 
 		// Draw current player icon
-		op = createOptionsSymbol(7, 9, 1)
+		op = createOptionsSymbol(4, 9, 1)
 		screen.DrawImage(img[gameData.PlayerTurn+1], op)
 	}
-
+	op = createOptionsSymbol(8, 9, 1)
+	screen.DrawImage(img[Recycle], op)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
