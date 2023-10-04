@@ -1,8 +1,8 @@
-module foo
+module github.com/pdxiv/super-tic-tac-toe
 
 go 1.19
 
-require github.com/hajimehoshi/ebiten/v2 v2.6.0
+require github.com/hajimehoshi/ebiten/v2 v2.6.1
 
 require (
 	github.com/ebitengine/oto/v3 v3.1.0 // indirect
