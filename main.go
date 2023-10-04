@@ -2,17 +2,21 @@ package main
 
 import (
 	"bytes"
+	"embed"
+	_ "embed"
+	"image"
 	_ "image/png"
 	"log"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 var img []*ebiten.Image
+
+//go:embed assets/*
+var assets embed.FS
 
 const (
 	FieldSize     = 576
@@ -53,13 +57,22 @@ const (
 )
 
 func init() {
-	image_filename := []string{"resources/empty.png", "resources/circle.png", "resources/cross.png", "resources/grid.png", "resources/blocked.png", "resources/player.png", "resources/winner.png", "resources/recycle.png"}
-	for _, filename := range image_filename {
-		loadedImage, _, err := ebitenutil.NewImageFromFile(filename)
+	imageFilenames := []string{"assets/empty.png", "assets/circle.png", "assets/cross.png", "assets/grid.png", "assets/blocked.png", "assets/player.png", "assets/winner.png", "assets/recycle.png"}
+
+	for _, filename := range imageFilenames {
+		fileData, err := assets.ReadFile(filename)
 		if err != nil {
 			log.Fatal(err)
 		}
-		img = append(img, loadedImage)
+		imgReader := bytes.NewReader(fileData)
+
+		loadedImage, _, err := image.Decode(imgReader)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ebitenImage := ebiten.NewImageFromImage(loadedImage)
+
+		img = append(img, ebitenImage)
 	}
 }
 
@@ -91,7 +104,7 @@ func (g *Game) Update() error {
 			}
 
 			// Was mouse clicked inside the play grid?
-			if mouse.Y < FieldSize && !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
+			if mouse.X >= 0 && mouse.X < FieldSize && mouse.Y >= 0 && mouse.Y < FieldSize && !gameData.BlockedGrids[bigLocationX][bigLocationY] && gameData.PlayArea[mouse.X/SymbolSize][mouse.Y/SymbolSize] == 0 {
 
 				// Put a mark in an area and play a sound
 				gameData.PlayArea[areaLocationX][areaLocationY] = gameData.PlayerTurn + 1
@@ -247,8 +260,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func loadAudioFiles(filenames []string) ([]*audio.Player, error) {
 	audioContext := audio.NewContext(44100)
 	var players []*audio.Player
+
 	for _, filename := range filenames {
-		data, err := os.ReadFile(filename)
+		data, err := assets.ReadFile(filename) // Read from the embedded file system
 		if err != nil {
 			return nil, err
 		}
@@ -265,6 +279,7 @@ func loadAudioFiles(filenames []string) ([]*audio.Player, error) {
 		}
 		players = append(players, player)
 	}
+
 	return players, nil
 }
 
@@ -324,7 +339,7 @@ func initGameData() {
 
 func main() {
 	initGameData()
-	audioFiles := []string{"resources/wet.wav", "resources/c.wav", "resources/c-major.wav"}
+	audioFiles := []string{"assets/wet.wav", "assets/c.wav", "assets/c-major.wav"}
 	players, err := loadAudioFiles(audioFiles)
 	if err != nil {
 		log.Fatal(err)
